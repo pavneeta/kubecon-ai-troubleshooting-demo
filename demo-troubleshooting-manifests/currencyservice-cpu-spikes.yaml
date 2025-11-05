@@ -1,0 +1,85 @@
+# Currency Service with CPU Spike Issues
+# This manifest enables CPU spike simulation with very low CPU limits
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: currencyservice
+  labels:
+    app: currencyservice
+    demo-issue: cpu-spikes
+spec:
+  selector:
+    matchLabels:
+      app: currencyservice
+  template:
+    metadata:
+      labels:
+        app: currencyservice
+    spec:
+      serviceAccountName: currencyservice
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: currencyservice
+        ports:
+        - containerPort: 7000
+        env:
+        - name: PORT
+          value: "7000"
+        - name: DISABLE_PROFILER
+          value: "1"
+        # CPU spike simulation configuration
+        - name: SIMULATE_CPU_SPIKES
+          value: "true"
+        - name: CPU_SPIKE_FREQUENCY
+          value: "0.3"  # 30% of requests trigger CPU spikes
+        - name: CPU_SPIKE_DURATION_MS
+          value: "3000"  # 3 second CPU intensive operations
+        - name: CPU_SPIKE_INTENSITY
+          value: "0.9"   # 90% CPU utilization
+        resources:
+          requests:
+            cpu: 50m     # Very low CPU request
+            memory: 64Mi
+          limits:
+            cpu: 100m    # Low CPU limit to trigger throttling
+            memory: 128Mi
+        readinessProbe:
+          grpc:
+            port: 7000
+        livenessProbe:
+          grpc:
+            port: 7000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: currencyservice
+  labels:
+    app: currencyservice
+spec:
+  type: ClusterIP
+  selector:
+    app: currencyservice
+  ports:
+  - name: grpc
+    port: 7000
+    targetPort: 7000
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: currencyservice

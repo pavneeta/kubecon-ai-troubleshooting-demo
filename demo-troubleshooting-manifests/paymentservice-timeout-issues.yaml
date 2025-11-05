@@ -1,0 +1,89 @@
+# Payment Service with Timeout Issues
+# This manifest enables payment delay simulation with aggressive timeout settings
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+    demo-issue: grpc-timeouts
+spec:
+  selector:
+    matchLabels:
+      app: paymentservice
+  template:
+    metadata:
+      labels:
+        app: paymentservice
+    spec:
+      serviceAccountName: paymentservice
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: paymentservice
+        ports:
+        - containerPort: 50051
+        env:
+        - name: PORT
+          value: "50051"
+        - name: DISABLE_PROFILER
+          value: "1"
+        # Payment delay simulation configuration
+        - name: SIMULATE_PAYMENT_DELAYS
+          value: "true"
+        - name: PAYMENT_DELAY_FREQUENCY
+          value: "0.4"    # 40% of requests have delays
+        - name: PAYMENT_MIN_DELAY_MS
+          value: "3000"   # 3-8 second delays
+        - name: PAYMENT_MAX_DELAY_MS
+          value: "8000"
+        - name: PAYMENT_TIMEOUT_RATE
+          value: "0.15"   # 15% timeout rate
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        readinessProbe:
+          grpc:
+            port: 50051
+          timeoutSeconds: 2  # Aggressive timeout for demo
+        livenessProbe:
+          grpc:
+            port: 50051
+          timeoutSeconds: 2  # Aggressive timeout for demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+spec:
+  type: ClusterIP
+  selector:
+    app: paymentservice
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paymentservice
