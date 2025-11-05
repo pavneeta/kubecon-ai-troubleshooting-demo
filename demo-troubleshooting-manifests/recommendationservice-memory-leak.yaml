@@ -34,7 +34,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: recommendationservice
+        image: kubecondemo25.azurecr.io/image-workflow-1762311264326
         ports:
         - containerPort: 8080
         readinessProbe:
