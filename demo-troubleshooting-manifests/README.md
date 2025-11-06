@@ -2,6 +2,22 @@
 
 This directory contains modified versions of the microservices-demo that introduce various application layer issues for demonstrating AI-powered troubleshooting capabilities with AKS CLI agents.
 
+## 🎭 NEW: Sidecar-Based Demo (Recommended!)
+
+**Perfect for live demos** - Uses Google's original container images with lightweight sidecar containers that simulate issues. No custom image builds required!
+
+### Sidecar Demo Files:
+- `recommendationservice-memory-leak.yaml` - Memory leak via busybox sidecar
+- `cartservice-sidecar-issues.yaml` - Connection issues via netshoot sidecar  
+- `paymentservice-sidecar-issues.yaml` - Payment delays via busybox sidecar
+- `easy-demo-control.sh` - Interactive control script
+
+### Quick Demo Start:
+```bash
+chmod +x easy-demo-control.sh
+./easy-demo-control.sh
+```
+
 ## Demo Scenarios
 
 ### 1. Memory Leak Scenario (`recommendationservice-memory-leak.yaml`)

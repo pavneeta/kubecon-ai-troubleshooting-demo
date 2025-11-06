@@ -1,0 +1,73 @@
+# Simple Chaos Engineering manifests for demo
+# These can be applied/removed to create issues on-demand
+
+# 1. Memory Stress Test
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-stress-recommendationservice
+  labels:
+    app: chaos-memory
+    target: recommendationservice
+spec:
+  containers:
+  - name: stress
+    image: polinux/stress:1.0.4
+    command: ["stress"]
+    args: ["--vm", "1", "--vm-bytes", "100M", "--vm-keep", "--timeout", "300s"]
+    resources:
+      requests:
+        memory: "50Mi"
+      limits:
+        memory: "150Mi"
+  restartPolicy: Never
+  nodeSelector:
+    # Target the same node as recommendationservice (optional)
+    kubernetes.io/os: linux
+---
+# 2. CPU Stress Test  
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-stress-recommendationservice
+  labels:
+    app: chaos-cpu
+    target: recommendationservice
+spec:
+  containers:
+  - name: stress
+    image: polinux/stress:1.0.4
+    command: ["stress"]
+    args: ["--cpu", "2", "--timeout", "60s"]
+    resources:
+      requests:
+        cpu: "100m"
+      limits:
+        cpu: "500m"
+  restartPolicy: Never
+---
+# 3. Network Latency (requires privileged access)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: network-chaos-recommendationservice
+  labels:
+    app: chaos-network
+    target: recommendationservice
+spec:
+  containers:
+  - name: network-chaos
+    image: nicolaka/netshoot:latest
+    command: ["/bin/bash"]
+    args:
+    - -c
+    - |
+      echo "Starting network chaos simulation..."
+      # Add latency to specific destinations
+      # tc qdisc add dev eth0 root netem delay 100ms 10ms
+      sleep 300
+    securityContext:
+      privileged: true
+      capabilities:
+        add: ["NET_ADMIN"]
+  restartPolicy: Never

@@ -1,0 +1,57 @@
+# ConfigMap with issue simulation scripts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: issue-simulator-scripts
+  labels:
+    app: issue-simulator
+data:
+  memory-leak.sh: |
+    #!/bin/sh
+    echo "Starting memory leak simulation..."
+    mkdir -p /tmp/shared
+    while true; do
+      if [ -f /tmp/shared/enable-memory-leak ]; then
+        # Allocate 10MB every 5 seconds
+        dd if=/dev/zero of=/tmp/shared/leak-$(date +%s) bs=1M count=10 2>/dev/null || true
+        echo "Allocated memory block at $(date)"
+      fi
+      sleep 5
+    done
+    
+  cpu-spike.sh: |
+    #!/bin/sh
+    echo "Starting CPU spike simulation..."
+    while true; do
+      if [ -f /tmp/shared/enable-cpu-spikes ]; then
+        echo "Creating CPU spike at $(date)"
+        # 10 second CPU burst
+        timeout 10s dd if=/dev/zero of=/dev/null bs=1M 2>/dev/null || true
+      fi
+      sleep 20
+    done
+    
+  network-delay.sh: |
+    #!/bin/sh  
+    echo "Starting network delay simulation..."
+    # This would require network policy changes or proxy injection
+    while true; do
+      if [ -f /tmp/shared/enable-network-delays ]; then
+        echo "Network delay active at $(date)"
+        # Simulate by adding artificial delays to DNS resolution
+        sleep 2
+      fi
+      sleep 10
+    done
+    
+  control-issues.sh: |
+    #!/bin/sh
+    echo "Issue control script started"
+    mkdir -p /tmp/shared
+    
+    # Enable/disable issues based on environment variables
+    [ "$ENABLE_MEMORY_LEAK" = "true" ] && touch /tmp/shared/enable-memory-leak || rm -f /tmp/shared/enable-memory-leak
+    [ "$SIMULATE_CPU_SPIKES" = "true" ] && touch /tmp/shared/enable-cpu-spikes || rm -f /tmp/shared/enable-cpu-spikes  
+    [ "$SIMULATE_NETWORK_DELAYS" = "true" ] && touch /tmp/shared/enable-network-delays || rm -f /tmp/shared/enable-network-delays
+    
+    echo "Issue flags configured at $(date)"

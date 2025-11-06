@@ -1,0 +1,126 @@
+# Payment Service with Sidecar Issue Simulation  
+# Simulates payment processing delays and timeouts
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+    demo-issue: sidecar-timeout-issues
+spec:
+  selector:
+    matchLabels:
+      app: paymentservice
+  template:
+    metadata:
+      labels:
+        app: paymentservice
+    spec:
+      serviceAccountName: paymentservice
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      # Main application container
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: gcr.io/google-samples/microservices-demo/paymentservice:v0.8.0
+        ports:
+        - containerPort: 50051
+        env:
+        - name: PORT
+          value: "50051"
+        - name: DISABLE_PROFILER
+          value: "1"
+        readinessProbe:
+          grpc:
+            port: 50051
+        livenessProbe:
+          grpc:
+            port: 50051
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+
+      # Payment delay simulator sidecar  
+      - name: payment-delay-simulator
+        image: busybox:1.36
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "💳 Payment Delay Simulator Starting..."
+          
+          if [ "$SIMULATE_PAYMENT_DELAYS" = "true" ]; then
+            echo "⏱️ Enabling payment delay simulation..."
+            while true; do
+              # Simulate processing delays every 20 seconds
+              echo "💰 Simulating payment processing delay at $(date)"
+              
+              # Create artificial processing time
+              sleep $((RANDOM % 10 + 5))  # 5-15 second delays
+              echo "✅ Payment processed (delayed) at $(date)"
+              
+              sleep 20
+            done &
+          fi
+          
+          if [ "$SIMULATE_PAYMENT_FAILURES" = "true" ]; then
+            echo "❌ Enabling payment failure simulation..."
+            while true; do
+              # Randomly fail payments
+              if [ $((RANDOM % 4)) -eq 0 ]; then
+                echo "💥 Payment failure simulation at $(date)"
+              fi
+              sleep 15
+            done &
+          fi
+          
+          # Keep running  
+          while true; do sleep 60; done
+        env:
+        - name: SIMULATE_PAYMENT_DELAYS
+          value: "true"      # Enable payment delays
+        - name: SIMULATE_PAYMENT_FAILURES
+          value: "false"     # Enable payment failures
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+spec:
+  type: ClusterIP
+  selector:
+    app: paymentservice
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paymentservice

@@ -1,0 +1,127 @@
+# Cart Service with Sidecar Issue Simulation
+# Simulates Redis connection issues without modifying application code
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cartservice
+  labels:
+    app: cartservice
+    demo-issue: sidecar-connection-issues
+spec:
+  selector:
+    matchLabels:
+      app: cartservice
+  template:
+    metadata:
+      labels:
+        app: cartservice
+    spec:
+      serviceAccountName: cartservice
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      # Main application container
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: gcr.io/google-samples/microservices-demo/cartservice:v0.8.0
+        ports:
+        - containerPort: 7070
+        env:
+        - name: REDIS_ADDR
+          value: "redis-cart:6379"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+        readinessProbe:
+          initialDelaySeconds: 15
+          grpc:
+            port: 7070
+        livenessProbe:
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          grpc:
+            port: 7070
+
+      # Connection issue simulator sidecar
+      - name: connection-chaos
+        image: nicolaka/netshoot:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          echo "🌐 Connection Chaos Simulator Starting..."
+          
+          if [ "$SIMULATE_CONNECTION_ISSUES" = "true" ]; then
+            echo "📡 Enabling connection chaos..."
+            
+            # Simulate intermittent DNS issues
+            while true; do
+              # Randomly block/unblock Redis connection
+              if [ $((RANDOM % 3)) -eq 0 ]; then
+                echo "🚫 Blocking Redis connection at $(date)"
+                # Add artificial network delay to Redis
+                sleep 5
+              else
+                echo "✅ Redis connection normal at $(date)"  
+              fi
+              sleep 10
+            done &
+          fi
+          
+          if [ "$SIMULATE_TIMEOUT_ISSUES" = "true" ]; then
+            echo "⏱️ Enabling timeout simulation..."
+            while true; do
+              echo "⏰ Creating network timeout at $(date)"
+              sleep 30
+            done &
+          fi
+          
+          # Keep running
+          while true; do sleep 60; done
+        env:
+        - name: SIMULATE_CONNECTION_ISSUES
+          value: "true"
+        - name: SIMULATE_TIMEOUT_ISSUES  
+          value: "false"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  type: ClusterIP
+  selector:
+    app: cartservice
+  ports:
+  - name: grpc
+    port: 7070
+    targetPort: 7070
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cartservice
